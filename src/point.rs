@@ -1,6 +1,7 @@
 
 use crate::vertex::Vertex;
 
+#[derive(Copy, Clone)]
 pub struct Point{
     pub x: f32,
     pub y: f32,
@@ -27,6 +28,23 @@ impl Point
             let theta = self.r * std::f32::consts::PI * (i as f32);
             let x = self.r * theta.cos();
             let y = self.r * theta.sin();
+            let v: Vertex =  Vertex { position: [x, y] };
+            &circle.push(v);
+        }
+
+        circle
+    }
+
+    pub fn get_hitbox(&mut self) -> Vec<Vertex>
+    {
+        let mut circle = vec![];
+
+        // Generate Circle Vector of Points
+        for i in 0..100
+        {
+            let theta = self.r * std::f32::consts::PI * (i as f32);
+            let x = (self.r+0.03) * theta.cos();
+            let y = (self.r+0.03) * theta.sin();
             let v: Vertex =  Vertex { position: [x, y] };
             &circle.push(v);
         }
