@@ -4,7 +4,7 @@ mod vertex;
 use std::iter::zip;
 use std::path::absolute;
 use glium::{implement_vertex, uniform, Surface};
-use crate::point::Point;
+use crate::point::{Hitbox, Point};
 use rand::prelude::*;
 use rand::TryRngCore;
 
@@ -20,8 +20,8 @@ fn check_window_collision(point: &mut Point)
 
     if point.y - point.r < -1.0 {
         point.y = -1.0 + point.r;
-        // point.vy *= -0.8;
-        point.vy = 0.0;
+        point.vy *= -0.8;
+        // point.vy = 0.0;
     } else if point.y + point.r > 1.0 {
         point.y = 1.0 - point.r;
         point.vy *= -0.8;
@@ -29,10 +29,18 @@ fn check_window_collision(point: &mut Point)
     }
 }
 
+fn calc_force(p1: &mut Point, p2: &mut Point, t: f32)
+{
+    let g = 9.81;
+    let force = g * (p1.mass - p2.mass) / ((p1.x - p2.x).powf(2.0) + (p1.y - p2.y).powf(2.0)).sqrt() * t;
+    p1.vx = (force * (p2.x - p1.x)) / (p1.mass + p2.mass) * t;
+    p1.vy = (force*(p2.y - p1.y)) / (p1.mass + p2.mass) * t;
+}
+
 fn check_collision(p1: &mut Point, p2: &mut Point) -> bool
 {
     let g = 9.81;
-    if ((p1.x - p2.x).powf(2.0) + (p1.y - p2.y).powf(2.0)) <= (p1.r + p2.r).powf(2.0)
+    if ((p1.x - p2.x).powf(2.0) + (p1.y - p2.y).powf(2.0)) - p1.r/3.0 <= (p1.r + p2.r).powf(2.0)
     {
         // println!("Balls colliding p1.x: {} p2.x: {} velocity p1: {} velocity p2: {}", p1.x, p2.x, p1.vy, p2.vy);
         let higher_point;
@@ -46,13 +54,9 @@ fn check_collision(p1: &mut Point, p2: &mut Point) -> bool
             lower_point = p2;
         }
 
-        // Problem jest w tej linijce
-        higher_point.y = lower_point.y + (lower_point.r * 2.0);
-        higher_point.vy *= -(higher_point.y/10.0)*g;
-
         true
     }
-    else if ((p1.x  - p2.x).powf(2.0) + (p1.y - p2.y).powf(2.0)) > (p1.r  + p2.r).powf(2.0)
+    else if ((p1.x  - p2.x).powf(2.0) + (p1.y - p2.y).powf(2.0)) - p1.r/3.0 > (p1.r  + p2.r).powf(2.0)
     {
         false
     }
@@ -122,12 +126,12 @@ fn main() {
 
 
     let mut t: f32 = 0.0;
-    let mut points = vec![Point::new(0.0, 0.0)];
+    let mut points = vec![];
     for _ in 0..200
     {
         let mut rng = rand::rng();
         points.push(Point::new(rng.gen_range(-1.0..1.0), rng.gen_range(-1.0..1.0)));
-        // points.push(Point::new(1.0, rng.gen_range(-1.0..1.0)));
+        // points.push(Point::new(0.0, rng.gen_range(-1.0..1.0)));
     }
 
     let mut points_uniforms = Vec::new();
@@ -164,8 +168,9 @@ fn main() {
                         points_uniforms.push(uniform! {x_off: p.x, y_off: p.y});
                         points_uniforms_hitbox.push(uniform! {x_off: p.x, y_off: p.y});
                         circle_buffers.push(glium::VertexBuffer::new(&display, &p.get_shape()).unwrap());
-                        circle_buffers_hitbox.push(glium::VertexBuffer::new(&display, &p.get_hitbox()).unwrap());
+                        circle_buffers_hitbox.push(glium::VertexBuffer::new(&display, &p.hitbox.get_hitbox()).unwrap());
                     }
+
 
 
                     // WERSJA 2
@@ -176,14 +181,31 @@ fn main() {
                                 let (left, right) = points.split_at_mut(j);
                                 (&mut left[i], &mut right[0])
                             };
-
                             if check_collision(p1, p2) {
-                                p1.vy += g * t;
-                                p2.vy += g * t;
+                                if p1.y > p2.y && p1.x == p2.x {
+                                    calc_force(p1, p2, t);
+                                    p1.vy += g * t;
+                                    p2.vy -= g * t;
+                                }
+                                else if p1.y < p2.y && p1.x == p2.x {
+                                    calc_force(p2, p1, t);
+                                    p1.vy -= g * t;
+                                    p2.vy += g * t;
+                                }
+                                else if p1.y == p2.y && p1.x < p2.x {
+                                    calc_force(p2, p1, t);
+                                    p1.vx += g * t;
+                                    p2.vx -= g * t;
+                                }
+                                else if p1.y == p2.y && p1.x > p2.x {
+                                    calc_force(p1, p2, t);
+                                    p1.vx -= g * t;
+                                    p2.vx += g * t;
+                                }
                             }
                             else {
-                                p1.vy += g * t;
-                                p2.vy += g * t;
+                                p1.vy -= g * t;
+                                p2.vy -= g * t;
                             }
 
                         }
@@ -191,10 +213,10 @@ fn main() {
 
                     let mut target = display.draw();
                     target.clear_color(0.0, 0.0, 1.0, 1.0);
-                    // for (u, cb) in zip(points_uniforms_hitbox.iter(), circle_buffers_hitbox.iter()) {
-                    //     target.draw(cb, &indices, &program_hitbox, u,
-                    //                 &Default::default()).unwrap();
-                    // }
+                    for (u, cb) in zip(points_uniforms_hitbox.iter(), circle_buffers_hitbox.iter()) {
+                        target.draw(cb, &indices, &program_hitbox, u,
+                                    &Default::default()).unwrap();
+                    }
 
                     for (u, cb) in zip(points_uniforms.iter(), circle_buffers.iter()) {
                         target.draw(cb, &indices, &program, u,

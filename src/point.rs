@@ -1,6 +1,38 @@
 
 use crate::vertex::Vertex;
 
+#[derive(Clone, Copy)]
+pub struct Hitbox {
+    pub x: f32,
+    pub y: f32,
+    pub r: f32,
+}
+
+impl Hitbox {
+   pub fn new(x: f32, y: f32, r: f32) -> Self
+   {
+       Hitbox{x, y, r}
+   }
+
+    pub fn get_hitbox(&mut self) -> Vec<Vertex>
+    {
+        let mut circle = vec![];
+
+        // Generate Circle Vector of Points
+        for i in 0..100
+        {
+            let theta = self.r * std::f32::consts::PI * (i as f32);
+            let x = (self.r+0.03) * theta.cos();
+            let y = (self.r+0.03) * theta.sin();
+            let v: Vertex =  Vertex { position: [x, y] };
+            &circle.push(v);
+        }
+
+        circle
+    }
+
+}
+
 #[derive(Copy, Clone)]
 pub struct Point{
     pub x: f32,
@@ -9,13 +41,14 @@ pub struct Point{
     pub vy: f32,
     pub mass: f32,
     pub r: f32,
+    pub hitbox: Hitbox,
 }
 
 impl Point
 {
     pub fn new(x: f32, y: f32) -> Self
     {
-        Point{x, y, vx: 0.0, vy: 0.0, mass: 1.0, r: 0.02}
+        Point{x, y, vx: 0.0, vy: 0.0, mass: 1.0, r: 0.02, hitbox: Hitbox::new(x, y, 0.02) }
     }
 
     pub fn get_shape(&mut self) -> Vec<Vertex>
@@ -35,28 +68,12 @@ impl Point
         circle
     }
 
-    pub fn get_hitbox(&mut self) -> Vec<Vertex>
-    {
-        let mut circle = vec![];
 
-        // Generate Circle Vector of Points
-        for i in 0..100
-        {
-            let theta = self.r * std::f32::consts::PI * (i as f32);
-            let x = (self.r+0.03) * theta.cos();
-            let y = (self.r+0.03) * theta.sin();
-            let v: Vertex =  Vertex { position: [x, y] };
-            &circle.push(v);
-        }
-
-        circle
-    }
 
     pub fn update_position(&mut self, dt: f32)
     {
         self.x += self.vx * dt;
-        self.y += (self.vy * dt);
-
+        self.y += self.vy * dt;
     }
 
 }
